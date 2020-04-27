@@ -1,0 +1,15 @@
+[package]
+name = "jupiter-contract"
+version = "0.1.0"
+license = "Apache-2.0"
+repository = "https://github.com/gballet/jupiter-contract"
+authors = ["Guillaume Ballet <gballet@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+multiproof-rs = "^0.1.6" 
+rlp = "0.4.4"
+jupiter-account = "^0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
