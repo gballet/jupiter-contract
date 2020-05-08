@@ -71,9 +71,9 @@ checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jupiter-account"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f37aad1c2b2aa54bfe25c6b85b0df0eb81d176043f4df74851f5f18908d60ebe"
+checksum = "0961341bd58e78638c89e91e000c3bd72d336287fdbdc87674d7258184843d58"
 dependencies = [
  "multiproof-rs",
  "rlp",
@@ -96,9 +96,9 @@ checksum = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 
 [[package]]
 name = "multiproof-rs"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d62ccd22f6e6adf7157440bed5bda097e5439980fc6c8b99005803638ff87ec6"
+checksum = "0c51470280524efc0172cc66107eee992b0c1981001a623891b7095daf0eaebd"
 dependencies = [
  "hex",
  "rlp",
