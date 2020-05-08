@@ -7,9 +7,9 @@ authors = ["Guillaume Ballet <gballet@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-multiproof-rs = "^0.1.6" 
+multiproof-rs = "^0.1.7" 
 rlp = "0.4.4"
-jupiter-account = "^0.1.0"
+jupiter-account = "^0.1.1"
 
 [lib]
 crate-type = ["cdylib"]
