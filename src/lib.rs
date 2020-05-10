@@ -64,33 +64,36 @@ pub extern "C" fn main() {
         for tx in txdata.txs {
             if let Node::Leaf(_, ref f) = trie[&tx.from] {
                 let mut from = rlp::decode::<Account>(&f).unwrap();
-                if let Node::Leaf(_, ref t) = trie[&tx.to] {
+
+                if from.balance() < tx.value {
+                    unsafe {
+                        revert();
+                    }
+                }
+                let from_balance = from.balance_mut().unwrap();
+                *from_balance -= tx.value;
+
+                if from.nonce() != tx.nonce {
+                    unsafe {
+                        revert();
+                    }
+                }
+                let from_nonce = from.nonce_mut().unwrap();
+                *from_nonce += 1;
+
+                let to = if let Node::Leaf(_, ref t) = trie[&tx.to] {
                     let mut to = rlp::decode::<Account>(&t).unwrap();
 
-                    if from.balance() >= tx.value {
-                        let from_balance = from.balance_mut().unwrap();
-                        *from_balance -= tx.value;
-                        let to_balance = to.balance_mut().unwrap();
-                        *to_balance += tx.value;
-                        update(&mut trie, &from, &to);
-                    } else {
-                        unsafe {
-                            revert();
-                        }
-                    }
+                    let to_balance = to.balance_mut().unwrap();
+                    *to_balance += tx.value;
+                    to
                 } else {
                     // Creation, value has to be checked,
                     // which means that I have to make sure
                     // that precompiles have access to value
-                    let to = Account::Existing(tx.to, 0, tx.value, vec![], false);
-                    if from.balance() >= tx.value {
-                        update(&mut trie, &from, &to);
-                    } else {
-                        unsafe {
-                            revert();
-                        }
-                    }
-                }
+                    Account::Existing(tx.to, 0, tx.value, vec![], false)
+                };
+                update(&mut trie, &from, &to);
             }
         }
 
