@@ -1,6 +1,8 @@
 extern crate jupiter_account;
+extern crate libsecp256k1;
 extern crate multiproof_rs;
 extern crate rlp;
+extern crate sha3;
 
 extern "C" {
     pub fn revert();
@@ -12,8 +14,9 @@ extern "C" {
 }
 
 use jupiter_account::{Account, TxData};
-
+use libsecp256k1::{Message, Signature};
 use multiproof_rs::{Node, ProofToTree, Tree};
+use sha3::Keccak256;
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
@@ -60,10 +63,25 @@ pub extern "C" fn main() {
     let txdata: TxData = rlp::decode(&payload).unwrap();
     let res = Vec::new();
 
+    // Recover the signature from the tx data.
+    // All transactions have to come from the
+    // same sender to be accepted.
+    let secp256k1 = Secp256k1::new();
+    let pkey = secp256k1.recover(&message, &signature).unwrap();
+    let keccak256 = Keccak256::new();
+    keccak256.input(&pkey);
+    let sig_addr = keccak256.result()[..20];
+
     if let Ok(mut trie) = verify(&txdata) {
         for tx in txdata.txs {
             if let Node::Leaf(_, ref f) = trie[&tx.from] {
                 let mut from = rlp::decode::<Account>(&f).unwrap();
+
+                // Check that the sender of the l2 tx is also the
+                // one that signed the txdata.
+                if sig_addr != tx.from {
+                    revert();
+                }
 
                 if from.balance() < tx.value {
                     unsafe {
