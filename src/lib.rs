@@ -1,7 +1,7 @@
 extern crate jupiter_account;
-extern crate libsecp256k1;
 extern crate multiproof_rs;
 extern crate rlp;
+extern crate secp256k1;
 extern crate sha3;
 
 extern "C" {
@@ -14,8 +14,8 @@ extern "C" {
 }
 
 use jupiter_account::{Account, TxData};
-use libsecp256k1::{Message, Signature};
 use multiproof_rs::{Node, ProofToTree, Tree};
+use secp256k1::{Message, Signature};
 use sha3::Keccak256;
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
