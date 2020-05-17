@@ -16,7 +16,7 @@ extern "C" {
 use jupiter_account::{Account, TxData};
 use multiproof_rs::{Node, ProofToTree, Tree};
 use secp256k1::{Message, Signature};
-use sha3::Keccak256;
+use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
@@ -70,7 +70,7 @@ pub extern "C" fn main() {
     let pkey = secp256k1.recover(&message, &signature).unwrap();
     let keccak256 = Keccak256::new();
     keccak256.input(&pkey);
-    let sig_addr = keccak256.result()[..20];
+    let sig_addr = &keccak256.result()[..20];
 
     if let Ok(mut trie) = verify(&txdata) {
         for tx in txdata.txs {
