@@ -14,8 +14,10 @@ extern "C" {
 }
 
 use jupiter_account::{Account, TxData};
-use multiproof_rs::{Node, ProofToTree, Tree};
-use secp256k1::{Message, Signature};
+use multiproof_rs::{ByteKey, Node, ProofToTree, Tree};
+use secp256k1::{
+    recover as secp256k1_recover, verify as secp256k1_verify, Message, RecoveryId, Signature,
+};
 use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
@@ -66,10 +68,23 @@ pub extern "C" fn main() {
     // Recover the signature from the tx data.
     // All transactions have to come from the
     // same sender to be accepted.
-    let secp256k1 = Secp256k1::new();
-    let pkey = secp256k1.recover(&message, &signature).unwrap();
-    let keccak256 = Keccak256::new();
-    keccak256.input(&pkey);
+    let mut keccak256 = Keccak256::new();
+    for tx in txdata.txs {
+        keccak256.input(rlp::encode(&tx));
+    }
+    let message_data = keccak256.result_reset();
+    let message = Message::parse_slice(&message_data).unwrap();
+    let signature = Signature::parse_slice(&txdata.signature[..64]).unwrap();
+    let recover = RecoveryId::parse(txdata.signature[64]).unwrap();
+    let pkey = secp256k1_recover(&message, &signature, &recover).unwrap();
+
+    // Verify the signature
+    if !secp256k1_verify(&message, &signature, &pkey) {
+        revert();
+    }
+
+    // Get the address
+    keccak256.input(&pkey.serialize()[..]);
     let sig_addr = &keccak256.result()[..20];
 
     if let Ok(mut trie) = verify(&txdata) {
