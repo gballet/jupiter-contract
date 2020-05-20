@@ -4,6 +4,7 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
+#[cfg(not(test))]
 mod eth {
     extern "C" {
         pub fn eei_revert();
@@ -45,6 +46,51 @@ mod eth {
     }
 }
 
+#[cfg(test)]
+mod eth {
+    static mut cd: Vec<u8> = Vec::new();
+    static mut root: Vec<u8> = Vec::new();
+
+    pub fn revert() {}
+
+    pub fn finish(res: Vec<u8>) {}
+
+    pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
+        let end = offset + buf.len();
+        println!("{} {} {}", offset, end, unsafe { cd.len() });
+        unsafe {
+            buf.copy_from_slice(&cd[offset..end]);
+        }
+    }
+
+    pub fn calldata_size() -> usize {
+        return unsafe { cd.len() };
+    }
+
+    pub fn get_storage_root(buf: &mut Vec<u8>) {
+        unsafe {
+            buf.copy_from_slice(&root[..]);
+        }
+    }
+
+    pub fn set_storage_root(buf: Vec<u8>) {
+        if buf.len() != 32 {
+            panic!("Invalid root length");
+        }
+        unsafe {
+            root.resize(32, 0u8);
+            for (i, b) in buf.iter().enumerate() {
+                root[i] = *b;
+            }
+        }
+    }
+    pub fn set_calldata(buf: Vec<u8>) {
+        for b in buf.iter() {
+            unsafe {
+                cd.push(*b);
+            }
+        }
+    }
 }
 
 use jupiter_account::{Account, TxData};
@@ -178,4 +224,44 @@ pub extern "C" fn main() {
 
 #[cfg(test)]
 mod tests {
+    use super::multiproof_rs::{make_multiproof, NibbleKey, Node};
+    use super::*;
+    use secp256k1::sign as secp256k1_sign;
+    use secp256k1::SecretKey;
+
+    #[test]
+    fn test_recover_account_no_keys() {
+        let mut root = Node::default();
+        root.insert(&NibbleKey::from(vec![0u8; 32]), vec![0u8; 32])
+            .unwrap();
+        root.insert(&NibbleKey::from(vec![1u8; 32]), vec![1u8; 32])
+            .unwrap();
+        let proof = make_multiproof(&root, vec![NibbleKey::from(vec![1u8; 32])]).unwrap();
+        let mut txdata = TxData {
+            proof,
+            txs: vec![],
+            signature: vec![0u8; 65],
+        };
+
+        let skey = SecretKey::parse(&[1; 32]).unwrap();
+        let mut keccak256 = Keccak256::new();
+        for tx in txdata.txs.iter() {
+            keccak256.input(rlp::encode(tx));
+        }
+        let message_data = keccak256.result_reset();
+        let message = Message::parse_slice(&message_data).unwrap();
+        let (sig, recid) = secp256k1_sign(&message, &skey);
+        txdata.signature[..64].copy_from_slice(&sig.serialize()[..]);
+        txdata.signature[64] = recid.serialize();
+
+        eth::set_storage_root(vec![0u8; 32]);
+        eth::set_calldata(rlp::encode(&txdata));
+
+        contract_main();
+
+        // Check that the root wasn't updated
+        let mut r = vec![0u8; 32];
+        eth::get_storage_root(&mut r);
+        assert_eq!(r, vec![0u8; 32]);
+    }
 }
