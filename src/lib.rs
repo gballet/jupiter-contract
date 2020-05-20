@@ -259,4 +259,32 @@ mod tests {
         eth::get_storage_root(&mut r);
         assert_eq!(r, root.hash());
     }
+
+    #[test]
+    fn test_validate_keys() {
+        let mut root = Node::default();
+        root.insert(&NibbleKey::from(vec![0u8; 32]), vec![0u8; 32])
+            .unwrap();
+        root.insert(&NibbleKey::from(vec![1u8; 32]), vec![1u8; 32])
+            .unwrap();
+        let proof = make_multiproof(&root, vec![NibbleKey::from(vec![1u8; 32])]).unwrap();
+        let mut txdata = TxData {
+            proof,
+            txs: vec![],
+            signature: vec![0u8; 65],
+        };
+
+        txdata.sign(&[1; 32]);
+
+        println!("root hash={:?}", root.hash());
+        eth::set_storage_root(root.hash());
+        eth::set_calldata(rlp::encode(&txdata));
+
+        contract_main().unwrap();
+
+        // Check that the root wasn't updated
+        let mut r = vec![0u8; 32];
+        eth::get_storage_root(&mut r);
+        assert_eq!(r, root.hash());
+    }
 }
