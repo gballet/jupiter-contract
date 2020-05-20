@@ -48,28 +48,33 @@ mod eth {
 
 #[cfg(test)]
 mod eth {
-    static mut cd: Vec<u8> = Vec::new();
-    static mut root: Vec<u8> = Vec::new();
+    static mut CD: Vec<u8> = Vec::new();
+    static mut ROOT: Vec<u8> = Vec::new();
+    static mut RESDATA: Vec<u8> = Vec::new();
 
     pub fn revert() {}
 
-    pub fn finish(res: Vec<u8>) {}
+    pub fn finish(res: Vec<u8>) {
+        unsafe {
+            RESDATA.copy_from_slice(&res[..]);
+        }
+    }
 
     pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
         let end = offset + buf.len();
-        println!("{} {} {}", offset, end, unsafe { cd.len() });
+        println!("{} {} {}", offset, end, unsafe { CD.len() });
         unsafe {
-            buf.copy_from_slice(&cd[offset..end]);
+            buf.copy_from_slice(&CD[offset..end]);
         }
     }
 
     pub fn calldata_size() -> usize {
-        return unsafe { cd.len() };
+        return unsafe { CD.len() };
     }
 
     pub fn get_storage_root(buf: &mut Vec<u8>) {
         unsafe {
-            buf.copy_from_slice(&root[..]);
+            buf.copy_from_slice(&ROOT[..]);
         }
     }
 
@@ -78,16 +83,16 @@ mod eth {
             panic!("Invalid root length");
         }
         unsafe {
-            root.resize(32, 0u8);
+            ROOT.resize(32, 0u8);
             for (i, b) in buf.iter().enumerate() {
-                root[i] = *b;
+                ROOT[i] = *b;
             }
         }
     }
     pub fn set_calldata(buf: Vec<u8>) {
         for b in buf.iter() {
             unsafe {
-                cd.push(*b);
+                CD.push(*b);
             }
         }
     }
