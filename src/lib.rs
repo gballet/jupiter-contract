@@ -10,7 +10,7 @@ extern "C" {
     pub fn calldata(buf: *const u8, offset: u64, len: usize);
     pub fn calldata_size() -> usize;
 
-    pub fn get_storage_root() -> Vec<u8>;
+    pub fn get_storage_root(ptr: *mut u8, len: usize);
 }
 
 use jupiter_account::{Account, TxData};
@@ -22,13 +22,17 @@ use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
+    let mut storage_root = vec![0u8; 32];
+    unsafe {
+        get_storage_root(storage_root.as_mut_ptr(), storage_root.len());
+    }
 
     // Check that the hash is the same as the root's
     // storage
-    if trie.hash() != unsafe { get_storage_root() } {
+    if trie.hash() != storage_root {
         return Err(format!(
             "Storage and proof root hashes differ: {:?} != {:?}",
-            unsafe { get_storage_root() },
+            storage_root,
             trie.hash()
         ));
     }
