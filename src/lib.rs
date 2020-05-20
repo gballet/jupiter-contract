@@ -14,7 +14,7 @@ extern "C" {
 }
 
 use jupiter_account::{Account, TxData};
-use multiproof_rs::{ByteKey, Node, ProofToTree, Tree};
+use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
 use secp256k1::{
     recover as secp256k1_recover, verify as secp256k1_verify, Message, RecoveryId, Signature,
 };
@@ -69,8 +69,8 @@ pub extern "C" fn main() {
     // All transactions have to come from the
     // same sender to be accepted.
     let mut keccak256 = Keccak256::new();
-    for tx in txdata.txs {
-        keccak256.input(rlp::encode(&tx));
+    for tx in txdata.txs.iter() {
+        keccak256.input(rlp::encode(tx));
     }
     let message_data = keccak256.result_reset();
     let message = Message::parse_slice(&message_data).unwrap();
@@ -80,7 +80,9 @@ pub extern "C" fn main() {
 
     // Verify the signature
     if !secp256k1_verify(&message, &signature, &pkey) {
-        revert();
+        unsafe {
+            revert();
+        }
     }
 
     // Get the address
@@ -94,8 +96,10 @@ pub extern "C" fn main() {
 
                 // Check that the sender of the l2 tx is also the
                 // one that signed the txdata.
-                if sig_addr != tx.from {
-                    revert();
+                if NibbleKey::from(ByteKey::from(sig_addr.to_vec())) != tx.from {
+                    unsafe {
+                        revert();
+                    }
                 }
 
                 if from.balance() < tx.value {
