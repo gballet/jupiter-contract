@@ -229,21 +229,6 @@ pub extern "C" fn main() {
 mod tests {
     use super::multiproof_rs::{make_multiproof, NibbleKey, Node};
     use super::*;
-    use secp256k1::sign as secp256k1_sign;
-    use secp256k1::SecretKey;
-
-    fn sign_txdata(txdata: &mut TxData) {
-        let skey = SecretKey::parse(&[1; 32]).unwrap();
-        let mut keccak256 = Keccak256::new();
-        for tx in txdata.txs.iter() {
-            keccak256.input(rlp::encode(tx));
-        }
-        let message_data = keccak256.result_reset();
-        let message = Message::parse_slice(&message_data).unwrap();
-        let (sig, recid) = secp256k1_sign(&message, &skey);
-        txdata.signature[..64].copy_from_slice(&sig.serialize()[..]);
-        txdata.signature[64] = recid.serialize();
-    }
 
     #[test]
     fn test_recover_account_no_keys() {
@@ -259,7 +244,7 @@ mod tests {
             signature: vec![0u8; 65],
         };
 
-        sign_txdata(&mut txdata);
+        txdata.sign(&[1; 32]);
 
         eth::set_storage_root(vec![0u8; 32]);
         eth::set_calldata(rlp::encode(&txdata));

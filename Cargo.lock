@@ -137,12 +137,14 @@ checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jupiter-account"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45f8d374d3f937868eeb363d0c8a496eb5bfe61dbef0d64c7b974c55f34e6bed"
+checksum = "95df350ed5a6d43365b7fb362d68d52f38685f76bed7221f33f70c21c1ca5e30"
 dependencies = [
+ "libsecp256k1",
  "multiproof-rs",
  "rlp",
+ "sha3",
 ]
 
 [[package]]
