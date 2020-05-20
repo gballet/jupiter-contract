@@ -34,9 +34,7 @@ mod eth {
     }
 
     pub fn calldata_size() -> usize {
-        unsafe {
-            return eei_calldata_size();
-        }
+        unsafe { eei_calldata_size() }
     }
 
     pub fn get_storage_root(buf: &mut Vec<u8>) {
@@ -136,7 +134,7 @@ fn update(trie: &mut Node, from: &Account, to: &Account) -> Vec<u8> {
             trie.insert(fa, rlp::encode(from)).unwrap();
             trie.insert(ta, rlp::encode(to)).unwrap();
 
-            return trie.hash();
+            trie.hash()
         }
         _ => panic!("Updated accounts can't be empty"),
     }
@@ -163,7 +161,7 @@ fn sig_check(txdata: &TxData) -> (bool, Vec<u8>) {
 
     // Get the address
     keccak256.input(&pkey.serialize()[..]);
-    return (true, keccak256.result()[..20].to_vec());
+    (true, keccak256.result()[..20].to_vec())
 }
 
 fn contract_main() {
