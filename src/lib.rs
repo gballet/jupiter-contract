@@ -164,7 +164,7 @@ fn sig_check(txdata: &TxData) -> (bool, Vec<u8>) {
     (true, keccak256.result()[..20].to_vec())
 }
 
-fn contract_main() {
+fn contract_main() -> Result<Vec<u8>, &'static str> {
     let mut payload = vec![0u8; eth::calldata_size()];
     eth::calldata(&mut payload, 0usize);
     let txdata: TxData = rlp::decode(&payload).unwrap();
@@ -172,7 +172,7 @@ fn contract_main() {
 
     let (sigok, sig_addr) = sig_check(&txdata);
     if !sigok {
-        eth::revert();
+        return Err("invalid signature");
     }
 
     if let Ok(mut trie) = verify(&txdata) {
@@ -183,17 +183,17 @@ fn contract_main() {
                 // Check that the sender of the l2 tx is also the
                 // one that signed the txdata.
                 if NibbleKey::from(ByteKey::from(sig_addr.to_vec())) != tx.from {
-                    eth::revert();
+                    return Err("l2 tx sender != l1 tx sender");
                 }
 
                 if from.balance() < tx.value {
-                    eth::revert();
+                    return Err("insufficent balance");
                 }
                 let from_balance = from.balance_mut().unwrap();
                 *from_balance -= tx.value;
 
                 if from.nonce() != tx.nonce {
-                    eth::revert();
+                    return Err("invalid nonce");
                 }
                 let from_nonce = from.nonce_mut().unwrap();
                 *from_nonce += 1;
@@ -214,15 +214,18 @@ fn contract_main() {
             }
         }
 
-        eth::finish(res);
+        return Ok(res);
     }
-    eth::revert();
+    Err("could not verify proof")
 }
 
 #[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn main() {
-    contract_main();
+    match contract_main() {
+        Ok(res) => eth::finish(res),
+        Err(_) => eth::revert(),
+    }
 }
 
 #[cfg(test)]
@@ -246,14 +249,14 @@ mod tests {
 
         txdata.sign(&[1; 32]);
 
-        eth::set_storage_root(vec![0u8; 32]);
+        eth::set_storage_root(root.hash());
         eth::set_calldata(rlp::encode(&txdata));
 
-        contract_main();
+        contract_main().unwrap();
 
         // Check that the root wasn't updated
         let mut r = vec![0u8; 32];
         eth::get_storage_root(&mut r);
-        assert_eq!(r, vec![0u8; 32]);
+        assert_eq!(r, root.hash());
     }
 }
