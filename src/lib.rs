@@ -4,13 +4,47 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
-extern "C" {
-    pub fn revert();
-    pub fn finish(data: *const u8, len: usize);
-    pub fn calldata(buf: *const u8, offset: u64, len: usize);
-    pub fn calldata_size() -> usize;
+mod eth {
+    extern "C" {
+        pub fn eei_revert();
+        pub fn eei_finish(data: *const u8, len: usize);
+        pub fn eei_calldata(buf: *const u8, offset: usize, len: usize);
+        pub fn eei_calldata_size() -> usize;
 
-    pub fn get_storage_root(ptr: *mut u8, len: usize);
+        pub fn eei_get_storage_root(ptr: *mut u8, len: usize);
+    }
+
+    pub fn revert() {
+        unsafe {
+            eei_revert();
+        }
+    }
+
+    pub fn finish(res: Vec<u8>) {
+        unsafe {
+            eei_finish(res.as_ptr(), res.len());
+        }
+    }
+
+    pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
+        unsafe {
+            eei_calldata(buf.as_mut_ptr(), offset, buf.len());
+        }
+    }
+
+    pub fn calldata_size() -> usize {
+        unsafe {
+            return eei_calldata_size();
+        }
+    }
+
+    pub fn get_storage_root(buf: &mut Vec<u8>) {
+        unsafe {
+            eei_get_storage_root(buf.as_mut_ptr(), buf.len());
+        }
+    }
+}
+
 }
 
 use jupiter_account::{Account, TxData};
@@ -23,9 +57,7 @@ use sha3::{Digest, Keccak256};
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
     let mut storage_root = vec![0u8; 32];
-    unsafe {
-        get_storage_root(storage_root.as_mut_ptr(), storage_root.len());
-    }
+    eth::get_storage_root(&mut storage_root);
 
     // Check that the hash is the same as the root's
     // storage
@@ -59,16 +91,7 @@ fn update(trie: &mut Node, from: &Account, to: &Account) -> Vec<u8> {
     }
 }
 
-#[cfg(not(test))]
-#[no_mangle]
-pub extern "C" fn main() {
-    let mut payload = vec![0u8; unsafe { calldata_size() }];
-    unsafe {
-        calldata(payload.as_mut_ptr(), 0, calldata_size());
-    }
-    let txdata: TxData = rlp::decode(&payload).unwrap();
-    let res = Vec::new();
-
+fn sig_check(txdata: &TxData) -> (bool, Vec<u8>) {
     // Recover the signature from the tx data.
     // All transactions have to come from the
     // same sender to be accepted.
@@ -84,14 +107,24 @@ pub extern "C" fn main() {
 
     // Verify the signature
     if !secp256k1_verify(&message, &signature, &pkey) {
-        unsafe {
-            revert();
-        }
+        return (false, Vec::new());
     }
 
     // Get the address
     keccak256.input(&pkey.serialize()[..]);
-    let sig_addr = &keccak256.result()[..20];
+    return (true, keccak256.result()[..20].to_vec());
+}
+
+fn contract_main() {
+    let mut payload = vec![0u8; eth::calldata_size()];
+    eth::calldata(&mut payload, 0usize);
+    let txdata: TxData = rlp::decode(&payload).unwrap();
+    let res = Vec::new();
+
+    let (sigok, sig_addr) = sig_check(&txdata);
+    if !sigok {
+        eth::revert();
+    }
 
     if let Ok(mut trie) = verify(&txdata) {
         for tx in txdata.txs {
@@ -101,23 +134,17 @@ pub extern "C" fn main() {
                 // Check that the sender of the l2 tx is also the
                 // one that signed the txdata.
                 if NibbleKey::from(ByteKey::from(sig_addr.to_vec())) != tx.from {
-                    unsafe {
-                        revert();
-                    }
+                    eth::revert();
                 }
 
                 if from.balance() < tx.value {
-                    unsafe {
-                        revert();
-                    }
+                    eth::revert();
                 }
                 let from_balance = from.balance_mut().unwrap();
                 *from_balance -= tx.value;
 
                 if from.nonce() != tx.nonce {
-                    unsafe {
-                        revert();
-                    }
+                    eth::revert();
                 }
                 let from_nonce = from.nonce_mut().unwrap();
                 *from_nonce += 1;
@@ -138,13 +165,15 @@ pub extern "C" fn main() {
             }
         }
 
-        unsafe {
-            finish(res.as_ptr(), res.len());
-        }
+        eth::finish(res);
     }
-    unsafe {
-        revert();
-    }
+    eth::revert();
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+pub extern "C" fn main() {
+    contract_main();
 }
 
 #[cfg(test)]
