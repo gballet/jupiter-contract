@@ -98,10 +98,6 @@ mod eth {
 
 use jupiter_account::{Account, TxData};
 use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
-use secp256k1::{
-    recover as secp256k1_recover, verify as secp256k1_verify, Message, RecoveryId, Signature,
-};
-use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
@@ -140,37 +136,13 @@ fn update(trie: &mut Node, from: &Account, to: &Account) -> Vec<u8> {
     }
 }
 
-fn sig_check(txdata: &TxData) -> (bool, Vec<u8>) {
-    // Recover the signature from the tx data.
-    // All transactions have to come from the
-    // same sender to be accepted.
-    let mut keccak256 = Keccak256::new();
-    for tx in txdata.txs.iter() {
-        keccak256.input(rlp::encode(tx));
-    }
-    let message_data = keccak256.result_reset();
-    let message = Message::parse_slice(&message_data).unwrap();
-    let signature = Signature::parse_slice(&txdata.signature[..64]).unwrap();
-    let recover = RecoveryId::parse(txdata.signature[64]).unwrap();
-    let pkey = secp256k1_recover(&message, &signature, &recover).unwrap();
-
-    // Verify the signature
-    if !secp256k1_verify(&message, &signature, &pkey) {
-        return (false, Vec::new());
-    }
-
-    // Get the address
-    keccak256.input(&pkey.serialize()[..]);
-    (true, keccak256.result()[..20].to_vec())
-}
-
 fn contract_main() -> Result<Vec<u8>, &'static str> {
     let mut payload = vec![0u8; eth::calldata_size()];
     eth::calldata(&mut payload, 0usize);
     let txdata: TxData = rlp::decode(&payload).unwrap();
     let res = Vec::new();
 
-    let (sigok, sig_addr) = sig_check(&txdata);
+    let (sigok, sig_addr) = txdata.sig_check();
     if !sigok {
         return Err("invalid signature");
     }

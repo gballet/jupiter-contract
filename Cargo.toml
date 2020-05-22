@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 multiproof-rs = "^0.1.7" 
 rlp = "0.4.4"
-jupiter-account = "^0.1.5"
+jupiter-account = "^0.1.6"
 libsecp256k1 = "0.3.5"
 sha3 = "0.8.2"
 
