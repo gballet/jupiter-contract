@@ -87,7 +87,7 @@ mod eth {
     }
 }
 
-use jupiter_account::{Account, TxData};
+use jupiter_account::{Account, Tx, TxData};
 use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
@@ -115,6 +115,94 @@ fn verify(txdata: &TxData) -> Result<Node, String> {
     Ok(trie)
 }
 
+fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'static str> {
+    if let Account::Existing(_, ref mut fnonce, ref mut fbalance, _, ref mut fstate) = from {
+        if let Account::Existing(_, tnonce, ref mut tbalance, _, ref mut tstate) = to {
+            if *fnonce != tx.nonce {
+                return Err("invalid nonce");
+            }
+            *fnonce += 1;
+
+            if *fbalance < tx.value {
+                return Err("insufficent balance");
+            }
+
+            let (valid, txsender_addr) = tx.sig_check();
+            if !valid {
+                return Err("invalid tx signature");
+            }
+
+            match tx.call {
+                // This is a simple value transfer tx
+                0 => {
+                    if txsender_addr != tx.from {
+                        return Err("tx signer != tx.from");
+                    }
+
+                    *fbalance -= tx.value;
+                    *tbalance += tx.value;
+                }
+                // Create channel. This is mostly like a simple value
+                // transfer, however the account has to not already
+                // exist and it will be endowed with a data segment
+                // containing the address of the other party, as well
+                // as a status byte saying it's in 'transfer' mode.
+                1 => {
+                    // Check that the account doesn't already exist
+                    if *tnonce != 0 {
+                        return Err("Trying to overwrite an existing account");
+                    }
+
+                    // Update balance to fund the account
+                    if *tbalance > 0 {
+                        return Err("Trying to overwrite a funded account");
+                    }
+                    *tbalance = tx.value;
+                    *fbalance -= tx.value;
+
+                    // Initialize the state with the destination address
+                    // and the status byte.
+                    *tstate = vec![0u8; 33];
+                    let t: Vec<u8> = ByteKey::from(tx.to.clone()).into();
+                    (*tstate)[..32].copy_from_slice(&t[..]);
+                    // data[32] is therefore set to 0 == "transfer" mode
+                }
+                // Pay the other contract.
+                2 => {
+                    // Check that the state's status byte is in "transfer"
+                    // mode.
+                    if fstate[32] != 0 {
+                        return Err("Contract isn't in transfer mode");
+                    }
+
+                    // Check that the recipient's address is the one stored
+                    // in the state.
+                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.to {
+                        return Err("Invalid tx recipient");
+                    }
+
+                    *tbalance = tx.value;
+                    *fbalance -= tx.value;
+                }
+                // Close channel. This will simply change the status
+                // byte to mark that the contract is no longer in the
+                // 'transfer' mode and instead in the 'refund' mode.
+                3 => {
+                }
+                // Refund
+                4 => {}
+                _ => return Err("unknown tx.call"),
+            }
+
+            Ok(())
+        } else {
+            Err("Recipient account shouldn't be empty at this point")
+        }
+    } else {
+        Err("Tried to send from an empty account")
+    }
+}
+
 fn update(trie: &mut Node, from: &Account, to: &Account) -> Vec<u8> {
     match (from, to) {
         (Account::Existing(fa, _, _, _, _), Account::Existing(ta, _, _, _, _)) => {
@@ -133,46 +221,20 @@ fn contract_main() -> Result<Vec<u8>, &'static str> {
     let txdata: TxData = rlp::decode(&payload).unwrap();
     let res = Vec::new();
 
-    let (sigok, sig_addr) = txdata.sig_check();
-    if !sigok {
-        return Err("invalid signature");
-    }
-
     if let Ok(mut trie) = verify(&txdata) {
         for tx in txdata.txs {
             if let Node::Leaf(_, ref f) = trie[&tx.from] {
                 let mut from = rlp::decode::<Account>(&f).unwrap();
 
-                // Check that the sender of the l2 tx is also the
-                // one that signed the txdata.
-                if NibbleKey::from(ByteKey::from(sig_addr.to_vec())) != tx.from {
-                    return Err("l2 tx sender != l1 tx sender");
-                }
-
-                if from.balance() < tx.value {
-                    return Err("insufficent balance");
-                }
-                let from_balance = from.balance_mut().unwrap();
-                *from_balance -= tx.value;
-
-                if from.nonce() != tx.nonce {
-                    return Err("invalid nonce");
-                }
-                let from_nonce = from.nonce_mut().unwrap();
-                *from_nonce += 1;
-
-                let to = if let Node::Leaf(_, ref t) = trie[&tx.to] {
-                    let mut to = rlp::decode::<Account>(&t).unwrap();
-
-                    let to_balance = to.balance_mut().unwrap();
-                    *to_balance += tx.value;
-                    to
+                let mut to = if let Node::Leaf(_, ref t) = trie[&tx.to] {
+                    rlp::decode::<Account>(&t).unwrap()
                 } else {
-                    // Creation, value has to be checked,
-                    // which means that I have to make sure
-                    // that precompiles have access to value
-                    Account::Existing(tx.to, 0, tx.value, vec![], false)
+                    // Creation, value has to be checked.
+                    Account::Existing(tx.to.clone(), 0, tx.value, vec![], vec![])
                 };
+
+                execute_tx(&mut from, &mut to, &tx)?;
+
                 update(&mut trie, &from, &to);
             }
         }
@@ -204,13 +266,7 @@ mod tests {
         root.insert(&NibbleKey::from(vec![1u8; 32]), vec![1u8; 32])
             .unwrap();
         let proof = make_multiproof(&root, vec![NibbleKey::from(vec![1u8; 32])]).unwrap();
-        let mut txdata = TxData {
-            proof,
-            txs: vec![],
-            signature: vec![0u8; 65],
-        };
-
-        txdata.sign(&[1; 32]);
+        let txdata = TxData { proof, txs: vec![] };
 
         eth::set_storage_root(root.hash());
         eth::set_calldata(rlp::encode(&txdata));
@@ -231,13 +287,7 @@ mod tests {
         root.insert(&NibbleKey::from(vec![1u8; 32]), vec![1u8; 32])
             .unwrap();
         let proof = make_multiproof(&root, vec![NibbleKey::from(vec![1u8; 32])]).unwrap();
-        let mut txdata = TxData {
-            proof,
-            txs: vec![],
-            signature: vec![0u8; 65],
-        };
-
-        txdata.sign(&[1; 32]);
+        let txdata = TxData { proof, txs: vec![] };
 
         println!("root hash={:?}", root.hash());
         eth::set_storage_root(root.hash());
