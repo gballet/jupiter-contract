@@ -48,15 +48,6 @@ mod eth {
 mod eth {
     static mut CD: Vec<u8> = Vec::new();
     static mut ROOT: Vec<u8> = Vec::new();
-    static mut RESDATA: Vec<u8> = Vec::new();
-
-    pub fn revert() {}
-
-    pub fn finish(res: Vec<u8>) {
-        unsafe {
-            RESDATA.copy_from_slice(&res[..]);
-        }
-    }
 
     pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
         let end = offset + buf.len();
