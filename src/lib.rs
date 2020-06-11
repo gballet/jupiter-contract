@@ -188,6 +188,22 @@ fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'sta
                 // byte to mark that the contract is no longer in the
                 // 'transfer' mode and instead in the 'refund' mode.
                 3 => {
+                    // NOTE the sender can set some value here, it
+                    // won't be transferred.
+
+                    // Check that the state's status byte is in "transfer"
+                    // mode.
+                    if fstate[32] != 0 {
+                        return Err("Contract isn't in transfer mode");
+                    }
+
+                    // Check that the sender's address is the one that
+                    // is stored in the state.
+                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.from {
+                        return Err("Invalid tx recipient");
+                    }
+
+                    fstate[32] = 1;
                 }
                 // Refund
                 4 => {}
