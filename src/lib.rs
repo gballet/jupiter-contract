@@ -4,6 +4,8 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
+use sha3::{Digest, Keccak256};
+
 #[cfg(not(test))]
 mod eth {
     extern "C" {
@@ -115,7 +117,12 @@ fn verify(txdata: &TxData) -> Result<Node, String> {
     Ok(trie)
 }
 
-fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'static str> {
+fn execute_tx(
+    from: &mut Account,
+    to: &mut Account,
+    contract: &mut Account,
+    tx: &Tx,
+) -> Result<(), &'static str> {
     if let Account::Existing(_, ref mut fnonce, ref mut fbalance, _, ref mut fstate) = from {
         if let Account::Existing(_, tnonce, ref mut tbalance, _, ref mut tstate) = to {
             if *fnonce != tx.nonce {
@@ -157,32 +164,66 @@ fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'sta
                     if *tbalance > 0 {
                         return Err("Trying to overwrite a funded account");
                     }
+
+                    // Check that the data field corresponds to the sender
+                    // address that this contract is meant to interface with
+                    let mut keccak256 = Keccak256::new();
+                    keccak256.input::<Vec<u8>>(ByteKey::from(tx.from.clone()).into());
+                    keccak256.input(&tx.data);
+                    let thisaddr = keccak256.result();
+                    if NibbleKey::from(ByteKey::from(thisaddr.to_vec())) != tx.to {
+                        return Err("H(from, data) != tx.to");
+                    }
+
+                    // Fund the account
                     *tbalance = tx.value;
                     *fbalance -= tx.value;
 
-                    // Initialize the state with the destination address
-                    // and the status byte.
-                    *tstate = vec![0u8; 33];
-                    let t: Vec<u8> = ByteKey::from(tx.to.clone()).into();
-                    (*tstate)[..32].copy_from_slice(&t[..]);
-                    // data[32] is therefore set to 0 == "transfer" mode
+                    // Initialize the state with the destination address,
+                    // the origin address and the status byte.
+                    *tstate = vec![0u8; 65];
+                    (*tstate)[..32].copy_from_slice(&tx.data[..32]);
+                    let f: Vec<u8> = ByteKey::from(tx.from.clone()).into();
+                    (*tstate)[32..64].copy_from_slice(&f[..]);
+                    // data[64] is therefore set to 0 == "transfer" mode
                 }
-                // Pay the other contract.
+                // Pay the other contract. The "from" address is the one
+                // of the sender's contract and the "to" address is that
+                // of the recipient (NOT the recipient's contract).
                 2 => {
                     // Check that the state's status byte is in "transfer"
                     // mode.
-                    if fstate[32] != 0 {
+                    if fstate[64] != 0 {
                         return Err("Contract isn't in transfer mode");
                     }
 
-                    // Check that the recipient's address is the one stored
+                    // Check that the sender's address is the one stored
                     // in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.to {
-                        return Err("Invalid tx recipient");
+                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.from {
+                        return Err("Invalid tx sender");
                     }
 
-                    *tbalance = tx.value;
-                    *fbalance -= tx.value;
+                    // The recipient is the contract holding the funds,
+                    // decrease its balance.
+                    *tbalance -= tx.value;
+
+                    // Calculate the senders' contract account so that
+                    // it can be recovered and its balance increased.
+                    if let Account::Existing(ref addr, _, ref mut cbalance, _, _) = contract {
+                        // Check that the address is the right one
+                        let mut keccak256 = Keccak256::new();
+                        keccak256.input(&tstate[32..64]);
+                        keccak256.input(&tstate[..32]);
+                        let thisaddr = keccak256.result();
+                        if &NibbleKey::from(ByteKey::from(thisaddr.to_vec())) != addr {
+                            return Err("receiver address is not authorized by contract");
+                        }
+
+                        // Increase the senders' contract balance.
+                        *cbalance += tx.value;
+                    } else {
+                        return Err("Contract isn't available");
+                    }
                 }
                 // Close channel. This will simply change the status
                 // byte to mark that the contract is no longer in the
@@ -193,7 +234,7 @@ fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'sta
 
                     // Check that the state's status byte is in "transfer"
                     // mode.
-                    if fstate[32] != 0 {
+                    if fstate[64] != 0 {
                         return Err("Contract isn't in transfer mode");
                     }
 
@@ -203,7 +244,7 @@ fn execute_tx(from: &mut Account, to: &mut Account, tx: &Tx) -> Result<(), &'sta
                         return Err("Invalid tx recipient");
                     }
 
-                    fstate[32] = 1;
+                    fstate[64] = 1;
                 }
                 // Refund
                 4 => {}
@@ -249,7 +290,7 @@ fn contract_main() -> Result<Vec<u8>, &'static str> {
                     Account::Existing(tx.to.clone(), 0, tx.value, vec![], vec![])
                 };
 
-                execute_tx(&mut from, &mut to, &tx)?;
+                execute_tx(&mut from, &mut to, &mut Account::Empty, &tx)?;
 
                 update(&mut trie, &from, &to);
             }
