@@ -188,9 +188,9 @@ dependencies = [
 
 [[package]]
 name = "multiproof-rs"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c51470280524efc0172cc66107eee992b0c1981001a623891b7095daf0eaebd"
+checksum = "bb4b748b9c6ba080566ee08935bfed029a0ceac97361ebcf9ba99f9001defd3b"
 dependencies = [
  "hex",
  "rlp",
