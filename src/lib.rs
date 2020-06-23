@@ -4,8 +4,6 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
-use sha3::{Digest, Keccak256};
-
 #[cfg(not(test))]
 mod eth {
     extern "C" {
@@ -58,9 +56,15 @@ mod eth {
     static mut CD: Vec<u8> = Vec::new();
     static mut ROOT: Vec<u8> = Vec::new();
 
+    pub fn reset() {
+        unsafe {
+            CD.clear();
+            ROOT.clear();
+        }
+    }
+
     pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
         let end = offset + buf.len();
-        println!("{} {} {}", offset, end, unsafe { CD.len() });
         unsafe {
             buf.copy_from_slice(&CD[offset..end]);
         }
@@ -98,6 +102,7 @@ mod eth {
 
 use jupiter_account::{Account, Tx, TxData};
 use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
+use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
     let trie: Node = txdata.proof.rebuild()?;
@@ -182,9 +187,8 @@ fn execute_tx(
 
                     // Check that the data field corresponds to the sender
                     // address that this contract is meant to interface with
-                    let x: Vec<u8> = ByteKey::from(tx.from.clone()).into();
                     let mut keccak256 = Keccak256::new();
-                    keccak256.input::<Vec<u8>>(x);
+                    keccak256.input::<Vec<u8>>(ByteKey::from(tx.from.clone()).into());
                     keccak256.input(&tx.data);
                     let thisaddr = keccak256.result()[..20].to_vec();
                     if NibbleKey::from(ByteKey::from(thisaddr)) != tx.to {
@@ -352,6 +356,8 @@ mod tests {
 
     #[test]
     fn test_recover_account_no_keys() {
+        eth::reset();
+
         let mut root = Node::default();
         root.insert(&NibbleKey::from(vec![0u8; 32]), vec![0u8; 32])
             .unwrap();
@@ -373,6 +379,8 @@ mod tests {
 
     #[test]
     fn test_validate_keys() {
+        eth::reset();
+
         let mut root = Node::default();
         root.insert(&NibbleKey::from(vec![0u8; 32]), vec![0u8; 32])
             .unwrap();
@@ -381,7 +389,6 @@ mod tests {
         let proof = make_multiproof(&root, vec![NibbleKey::from(vec![1u8; 32])]).unwrap();
         let txdata = TxData { proof, txs: vec![] };
 
-        println!("root hash={:?}", root.hash());
         eth::set_storage_root(root.hash());
         eth::set_calldata(rlp::encode(&txdata));
 
@@ -441,6 +448,7 @@ mod tests {
         keccak256.input(&addr2);
         let contract_address =
             NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+
         // Channel-opening layer 2 transaction
         let mut open_tx = Tx {
             from: user1_addr.clone(),
