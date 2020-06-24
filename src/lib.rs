@@ -217,12 +217,6 @@ fn execute_tx(
                         return Err("Contract isn't in transfer mode");
                     }
 
-                    // Check that the sender's address is the one stored
-                    // in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.from {
-                        return Err("Invalid tx sender");
-                    }
-
                     // The recipient is the contract holding the funds,
                     // decrease its balance.
                     *tbalance -= tx.value;
