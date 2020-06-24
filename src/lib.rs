@@ -140,9 +140,10 @@ fn account_from_trie(key: NibbleKey, trie: &Node) -> Result<Account, &'static st
 fn execute_tx(
     from: &mut Account,
     to: &mut Account,
-    trie: &Node,
+    trie: &mut Node,
     tx: &Tx,
 ) -> Result<(), &'static str> {
+    let mut updated_accounts = Vec::<&Account>::new();
     if let Account::Existing(_, ref mut fnonce, ref mut fbalance, _, ref mut fstate) = from {
         if let Account::Existing(_, tnonce, ref mut tbalance, _, ref mut tstate) = to {
             if *fnonce != tx.nonce {
@@ -206,6 +207,9 @@ fn execute_tx(
                     let f: Vec<u8> = ByteKey::from(tx.from.clone()).into();
                     (*tstate)[20..40].copy_from_slice(&f[..]);
                     // data[40] is therefore set to 0 == "transfer" mode
+
+                    updated_accounts.push(from);
+                    updated_accounts.push(to);
                 }
                 // Pay the other contract. The "from" address is the one
                 // of the sender's contract and the "to" address is that
@@ -277,6 +281,7 @@ fn execute_tx(
                 _ => return Err("unknown tx.call"),
             }
 
+            update(trie, updated_accounts);
             Ok(())
         } else {
             Err("Recipient account shouldn't be empty at this point")
@@ -286,16 +291,17 @@ fn execute_tx(
     }
 }
 
-fn update(trie: &mut Node, from: &Account, to: &Account) {
-    match (from, to) {
-        (Account::Existing(fa, _, _, _, _), Account::Existing(ta, _, _, _, _)) => {
-            trie.insert(fa, rlp::encode(from)).unwrap();
-            trie.insert(ta, rlp::encode(to)).unwrap();
+fn update(trie: &mut Node, accounts: Vec<&Account>) {
+    for account in accounts.iter() {
+        match account {
+            Account::Existing(a, _, _, _, _) => {
+                trie.insert(a, rlp::encode(*account)).unwrap();
+            }
 
-            eth::set_storage_root(trie.hash());
+            _ => panic!("Updated accounts can't be empty"),
         }
-        _ => panic!("Updated accounts can't be empty"),
     }
+    eth::set_storage_root(trie.hash());
 }
 
 fn contract_main() -> Result<Vec<u8>, &'static str> {
@@ -319,9 +325,7 @@ fn contract_main() -> Result<Vec<u8>, &'static str> {
                     Account::Existing(tx.to.clone(), 0, 0, vec![], vec![])
                 };
 
-                execute_tx(&mut from, &mut to, &trie, &tx)?;
-
-                update(&mut trie, &from, &to);
+                execute_tx(&mut from, &mut to, &mut trie, &tx)?;
             }
         }
 
@@ -393,6 +397,7 @@ mod tests {
         eth::get_storage_root(&mut r);
         assert_eq!(r, root.hash());
     }
+
     #[test]
     fn test_channel_creation() {
         let mut root = Node::default();
