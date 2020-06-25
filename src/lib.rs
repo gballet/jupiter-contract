@@ -155,7 +155,7 @@ fn execute_tx(
                 return Err("insufficent balance");
             }
 
-            let (valid, txsender_addr) = tx.sig_check();
+            let (valid, txsigner_addr) = tx.sig_check();
             if !valid {
                 return Err("invalid tx signature");
             }
@@ -163,7 +163,7 @@ fn execute_tx(
             match tx.call {
                 // This is a simple value transfer tx
                 0 => {
-                    if txsender_addr != tx.from {
+                    if txsigner_addr != tx.from {
                         return Err("tx signer != tx.from");
                     }
 
@@ -227,7 +227,7 @@ fn execute_tx(
                     // Check that the transaction is signed by the account
                     // controlling this contract, i.e. the value stored at
                     // state[20..40].
-                    if txsender_addr != NibbleKey::from(ByteKey::from(tstate[20..40].to_vec())) {
+                    if txsigner_addr != NibbleKey::from(ByteKey::from(tstate[20..40].to_vec())) {
                         return Err("Tx isn't signed by the proper address");
                     }
 
@@ -258,22 +258,22 @@ fn execute_tx(
                 // byte to mark that the contract is no longer in the
                 // 'transfer' mode and instead in the 'refund' mode.
                 3 => {
-                    // NOTE the sender can set some value here, it
+                    // NOTE the sender can pass some value here, it
                     // won't be transferred.
 
                     // Check that the state's status byte is in "transfer"
                     // mode.
-                    if fstate[64] != 0 {
+                    if fstate[40] != 0 {
                         return Err("Contract isn't in transfer mode");
                     }
 
                     // Check that the sender's address is the one that
                     // is stored in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[..32].to_vec())) != tx.from {
+                    if NibbleKey::from(ByteKey::from(fstate[..20].to_vec())) != txsigner_addr {
                         return Err("Invalid tx recipient");
                     }
 
-                    fstate[64] = 1;
+                    fstate[40] = 1;
                 }
                 // Refund
                 4 => {
