@@ -169,6 +169,9 @@ fn execute_tx(
 
                     *fbalance -= tx.value;
                     *tbalance += tx.value;
+
+                    updated_accounts.push(from);
+                    updated_accounts.push(to);
                 }
                 // Create channel. This is mostly like a simple value
                 // transfer, however the account has to not already
@@ -219,6 +222,13 @@ fn execute_tx(
                     // mode.
                     if tstate[40] != 0 {
                         return Err("Contract isn't in transfer mode");
+                    }
+
+                    // Check that the transaction is signed by the account
+                    // controlling this contract, i.e. the value stored at
+                    // state[20..40].
+                    if txsender_addr != NibbleKey::from(ByteKey::from(tstate[20..40].to_vec())) {
+                        return Err("Tx isn't signed by the proper address");
                     }
 
                     // The recipient is the contract holding the funds,
