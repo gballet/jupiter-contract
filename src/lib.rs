@@ -269,7 +269,7 @@ fn execute_tx(
 
                     // Check that the sender's address is the one that
                     // is stored in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[..20].to_vec())) != txsigner_addr {
+                    if NibbleKey::from(ByteKey::from(fstate[20..40].to_vec())) != txsigner_addr {
                         return Err("Invalid tx recipient");
                     }
 
@@ -279,13 +279,13 @@ fn execute_tx(
                 4 => {
                     // Check that the state's status byte is in "refund"
                     // mode.
-                    if fstate[64] != 1 {
+                    if fstate[40] != 1 {
                         return Err("Contract isn't in refund mode");
                     }
 
                     // Check that the sender's address is the one that
                     // is stored in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[32..64].to_vec())) != tx.from {
+                    if NibbleKey::from(ByteKey::from(fstate[20..40].to_vec())) != txsigner_addr {
                         return Err("Invalid tx recipient");
                     }
 
