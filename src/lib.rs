@@ -4,49 +4,43 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
+mod eei;
+
 #[cfg(not(test))]
 mod eth {
-    extern "C" {
-        pub fn eei_revert();
-        pub fn eei_finish(data: *const u8, len: usize);
-        pub fn eei_calldata(buf: *const u8, offset: usize, len: usize);
-        pub fn eei_calldata_size() -> usize;
-
-        pub fn eei_get_storage_root(ptr: *mut u8, len: usize);
-        pub fn eei_set_storage_root(ptr: *const u8, len: usize);
-    }
+    use super::*;
 
     pub fn revert() {
         unsafe {
-            eei_revert();
+            eei::revert();
         }
     }
 
     pub fn finish(res: Vec<u8>) {
         unsafe {
-            eei_finish(res.as_ptr(), res.len());
+            eei::finish(res.as_ptr(), res.len());
         }
     }
 
     pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
         unsafe {
-            eei_calldata(buf.as_mut_ptr(), offset, buf.len());
+            eei::calldata(buf.as_mut_ptr(), offset, buf.len());
         }
     }
 
     pub fn calldata_size() -> usize {
-        unsafe { eei_calldata_size() }
+        unsafe { eei::calldata_size() }
     }
 
     pub fn get_storage_root(buf: &mut Vec<u8>) {
         unsafe {
-            eei_get_storage_root(buf.as_mut_ptr(), buf.len());
+            eei::get_storage_root(buf.as_mut_ptr(), buf.len());
         }
     }
 
     pub fn set_storage_root(buf: Vec<u8>) {
         unsafe {
-            eei_set_storage_root(buf.as_ptr(), buf.len());
+            eei::set_storage_root(buf.as_ptr(), buf.len());
         }
     }
 }
