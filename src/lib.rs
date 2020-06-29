@@ -138,7 +138,7 @@ fn execute_tx(
     tx: &Tx,
 ) -> Result<(), &'static str> {
     let mut updated_accounts = Vec::<&Account>::new();
-    if let Account::Existing(_, ref mut fnonce, ref mut fbalance, _, ref mut fstate) = from {
+    if let Account::Existing(_, ref mut fnonce, ref mut fbalance, _, _) = from {
         if let Account::Existing(_, tnonce, ref mut tbalance, _, ref mut tstate) = to {
             if *fnonce != tx.nonce {
                 return Err("invalid nonce");
@@ -362,10 +362,7 @@ pub extern "C" fn main() {
 mod tests {
     use super::multiproof_rs::{make_multiproof, NibbleKey, Node};
     use super::*;
-    use secp256k1::{
-        recover as secp256k1_recover, sign as secp256k1_sign, verify as secp256k1_verify, Message,
-        RecoveryId, SecretKey, Signature,
-    };
+    use secp256k1::{recover as secp256k1_recover, sign as secp256k1_sign, Message, SecretKey};
 
     #[test]
     fn test_recover_account_no_keys() {
