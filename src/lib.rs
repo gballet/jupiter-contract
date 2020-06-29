@@ -495,47 +495,36 @@ mod tests {
 
         // Check that the final root has been updated
         // to the proper value
-        let mut newtrie = Node::default();
-        newtrie
-            .insert(
-                &user1_addr,
-                rlp::encode(&Account::Existing(
-                    user1_addr.clone(),
-                    2,
-                    900,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
-                &user2_addr,
-                rlp::encode(&Account::Existing(
-                    user2_addr.clone(),
-                    1,
-                    20,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+        let endstate = vec![
+            (&user1_addr, 2, 900, vec![]),
+            (&user2_addr, 1, 20, vec![]),
+            (
                 &contract_address,
-                rlp::encode(&Account::Existing(
-                    contract_address.clone(),
-                    0,
-                    100,
-                    vec![],
-                    vec![
-                        123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
-                        130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205,
-                        9, 152, 122, 184, 20, 30, 197, 0,
-                    ],
-                )),
-            )
-            .unwrap();
+                0,
+                100,
+                vec![
+                    123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                    130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9,
+                    152, 122, 184, 20, 30, 197, 0,
+                ],
+            ),
+        ];
+        let mut newtrie = Node::default();
+        for (addr, nonce, balance, data) in endstate.iter() {
+            newtrie
+                .insert(
+                    &addr,
+                    rlp::encode(&Account::Existing(
+                        (*addr).clone(),
+                        *nonce,
+                        *balance,
+                        vec![],
+                        data.to_vec(),
+                    )),
+                )
+                .unwrap();
+        }
+
         let mut r = vec![0u8; 32];
         eth::get_storage_root(&mut r);
         assert_eq!(r, newtrie.hash());
@@ -667,63 +656,46 @@ mod tests {
 
         // Check that the final root has been updated
         // to the proper value
-        let mut newtrie = Node::default();
-        newtrie
-            .insert(
-                &user1_addr,
-                rlp::encode(&Account::Existing(
-                    user1_addr.clone(),
-                    2,
-                    900,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
-                &user2_addr,
-                rlp::encode(&Account::Existing(
-                    user2_addr.clone(),
-                    1,
-                    20,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+        let endstate = vec![
+            (&user1_addr, 2, 900, vec![]),
+            (&user2_addr, 1, 20, vec![]),
+            (
                 &contract_address1,
-                rlp::encode(&Account::Existing(
-                    contract_address1.clone(),
-                    1,
-                    90,
-                    vec![],
-                    vec![
-                        123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
-                        130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205,
-                        9, 152, 122, 184, 20, 30, 197, 0,
-                    ],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+                1,
+                90,
+                vec![
+                    123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                    130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9,
+                    152, 122, 184, 20, 30, 197, 0,
+                ],
+            ),
+            (
                 &contract_address2,
-                rlp::encode(&Account::Existing(
-                    contract_address2.clone(),
-                    0,
-                    110,
-                    vec![],
-                    vec![
-                        181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9, 152, 122,
-                        184, 20, 30, 197, 123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219,
-                        252, 140, 63, 99, 27, 130, 242, 14, 0,
-                    ],
-                )),
-            )
-            .unwrap();
+                0,
+                110,
+                vec![
+                    181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9, 152, 122, 184,
+                    20, 30, 197, 123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140,
+                    63, 99, 27, 130, 242, 14, 0,
+                ],
+            ),
+        ];
+        let mut newtrie = Node::default();
+        for (addr, nonce, balance, data) in endstate.iter() {
+            newtrie
+                .insert(
+                    &addr,
+                    rlp::encode(&Account::Existing(
+                        (*addr).clone(),
+                        *nonce,
+                        *balance,
+                        vec![],
+                        data.to_vec(),
+                    )),
+                )
+                .unwrap();
+        }
+
         let mut r = vec![0u8; 32];
         eth::get_storage_root(&mut r);
         assert_eq!(r, newtrie.hash());
@@ -855,63 +827,46 @@ mod tests {
 
         // Check that the final root has been updated
         // to the proper value
-        let mut newtrie = Node::default();
-        newtrie
-            .insert(
-                &user1_addr,
-                rlp::encode(&Account::Existing(
-                    user1_addr.clone(),
-                    2,
-                    900,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
-                &user2_addr,
-                rlp::encode(&Account::Existing(
-                    user2_addr.clone(),
-                    1,
-                    20,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+        let endstate = vec![
+            (&user1_addr, 2, 900, vec![]),
+            (&user2_addr, 1, 20, vec![]),
+            (
                 &contract_address1,
-                rlp::encode(&Account::Existing(
-                    contract_address1.clone(),
-                    2,
-                    90,
-                    vec![],
-                    vec![
-                        123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
-                        130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205,
-                        9, 152, 122, 184, 20, 30, 197, 1,
-                    ],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+                2,
+                90,
+                vec![
+                    123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                    130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9,
+                    152, 122, 184, 20, 30, 197, 1,
+                ],
+            ),
+            (
                 &contract_address2,
-                rlp::encode(&Account::Existing(
-                    contract_address2.clone(),
-                    0,
-                    110,
-                    vec![],
-                    vec![
-                        181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9, 152, 122,
-                        184, 20, 30, 197, 123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219,
-                        252, 140, 63, 99, 27, 130, 242, 14, 0,
-                    ],
-                )),
-            )
-            .unwrap();
+                0,
+                110,
+                vec![
+                    181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9, 152, 122, 184,
+                    20, 30, 197, 123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140,
+                    63, 99, 27, 130, 242, 14, 0,
+                ],
+            ),
+        ];
+        let mut newtrie = Node::default();
+        for (addr, nonce, balance, data) in endstate.iter() {
+            newtrie
+                .insert(
+                    &addr,
+                    rlp::encode(&Account::Existing(
+                        (*addr).clone(),
+                        *nonce,
+                        *balance,
+                        vec![],
+                        data.to_vec(),
+                    )),
+                )
+                .unwrap();
+        }
+
         let mut r = vec![0u8; 32];
         eth::get_storage_root(&mut r);
         assert_eq!(r, newtrie.hash());
@@ -1021,47 +976,36 @@ mod tests {
 
         // Check that the final root has been updated
         // to the proper value
-        let mut newtrie = Node::default();
-        newtrie
-            .insert(
-                &user1_addr,
-                rlp::encode(&Account::Existing(
-                    user1_addr.clone(),
-                    2,
-                    990,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
-                &user2_addr,
-                rlp::encode(&Account::Existing(
-                    user2_addr.clone(),
-                    1,
-                    20,
-                    vec![],
-                    vec![],
-                )),
-            )
-            .unwrap();
-        newtrie
-            .insert(
+        let endstate = vec![
+            (&user1_addr, 2, 990, vec![]),
+            (&user2_addr, 1, 20, vec![]),
+            (
                 &contract_address1,
-                rlp::encode(&Account::Existing(
-                    contract_address1.clone(),
-                    2,
-                    0,
-                    vec![],
-                    vec![
-                        123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
-                        130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205,
-                        9, 152, 122, 184, 20, 30, 197, 1,
-                    ],
-                )),
-            )
-            .unwrap();
+                2,
+                0,
+                vec![
+                    123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                    130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9,
+                    152, 122, 184, 20, 30, 197, 1,
+                ],
+            ),
+        ];
+        let mut newtrie = Node::default();
+        for (addr, nonce, balance, data) in endstate.iter() {
+            newtrie
+                .insert(
+                    &addr,
+                    rlp::encode(&Account::Existing(
+                        (*addr).clone(),
+                        *nonce,
+                        *balance,
+                        vec![],
+                        data.to_vec(),
+                    )),
+                )
+                .unwrap();
+        }
+
         let mut r = vec![0u8; 32];
         eth::get_storage_root(&mut r);
         assert_eq!(r, newtrie.hash());
