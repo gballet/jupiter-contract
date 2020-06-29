@@ -277,18 +277,21 @@ fn execute_tx(
                 4 => {
                     // Check that the state's status byte is in "refund"
                     // mode.
-                    if fstate[40] != 1 {
+                    if tstate[40] != 1 {
                         return Err("Contract isn't in refund mode");
                     }
 
                     // Check that the sender's address is the one that
                     // is stored in the state.
-                    if NibbleKey::from(ByteKey::from(fstate[20..40].to_vec())) != txsigner_addr {
+                    if NibbleKey::from(ByteKey::from(tstate[20..40].to_vec())) != txsigner_addr {
                         return Err("Invalid tx recipient");
                     }
 
                     *fbalance += *tbalance;
                     *tbalance = 0;
+
+                    updated_accounts.push(from);
+                    updated_accounts.push(to);
                 }
                 _ => return Err("unknown tx.call"),
             }
@@ -905,6 +908,156 @@ mod tests {
                         181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9, 152, 122,
                         184, 20, 30, 197, 123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219,
                         252, 140, 63, 99, 27, 130, 242, 14, 0,
+                    ],
+                )),
+            )
+            .unwrap();
+        let mut r = vec![0u8; 32];
+        eth::get_storage_root(&mut r);
+        assert_eq!(r, newtrie.hash());
+    }
+
+    #[test]
+    fn test_channel_refund() {
+        eth::reset();
+
+        let mut root = Node::default();
+
+        // Create the first account
+        let user1_skey = SecretKey::parse(&[1u8; 32]).unwrap();
+        let msg = Message::parse_slice(&[0x55u8; 32]).unwrap();
+        let (user1_sig, user1_recid) = secp256k1_sign(&msg, &user1_skey);
+        let user1_pkey = secp256k1_recover(&msg, &user1_sig, &user1_recid).unwrap();
+        let mut keccak256 = Keccak256::new();
+        keccak256.input(&user1_pkey.serialize()[..]);
+        let addr1 = keccak256.result_reset()[..20].to_vec();
+        let user1_addr = NibbleKey::from(ByteKey::from(addr1.clone()));
+        root.insert(
+            &user1_addr,
+            rlp::encode(&Account::Existing(
+                user1_addr.clone(),
+                1,
+                900,
+                vec![],
+                vec![],
+            )),
+        )
+        .unwrap();
+
+        // Create the second account
+        let user2_skey = SecretKey::parse(&[2u8; 32]).unwrap();
+        let (user2_sig, user2_recid) = secp256k1_sign(&msg, &user2_skey);
+        let user2_pkey = secp256k1_recover(&msg, &user2_sig, &user2_recid).unwrap();
+        keccak256.input(&user2_pkey.serialize()[..]);
+        let addr2 = keccak256.result_reset()[..20].to_vec();
+        let user2_addr = NibbleKey::from(ByteKey::from(addr2.clone()));
+        root.insert(
+            &user2_addr,
+            rlp::encode(&Account::Existing(
+                user2_addr.clone(),
+                1,
+                20,
+                vec![],
+                vec![],
+            )),
+        )
+        .unwrap();
+
+        // Intermediate contract address for user1
+        keccak256.input(&addr1);
+        keccak256.input(&addr2);
+        let contract_address1 =
+            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        root.insert(
+            &contract_address1,
+            rlp::encode(&Account::Existing(
+                contract_address1.clone(),
+                2,
+                90,
+                vec![],
+                vec![
+                    123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                    130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205, 9,
+                    152, 122, 184, 20, 30, 197, 1,
+                ],
+            )),
+        )
+        .unwrap();
+
+        // Channel-opening layer 2 transaction
+        let mut open_tx = Tx {
+            from: user1_addr.clone(),
+            to: contract_address1.clone(),
+            data: addr2,
+            nonce: 1,
+            value: 0,
+            signature: vec![0u8; 65],
+            call: 4,
+        };
+        open_tx.sign(&user1_skey.serialize());
+
+        // Create the proof containing the address of the channel creator,
+        // as well as the addrss of the contract that will be created.
+        let proof = make_multiproof(
+            &root,
+            vec![
+                user1_addr.clone(),
+                contract_address1.clone(),
+                user2_addr.clone(),
+            ],
+        )
+        .unwrap();
+
+        // Layer 1 tx data
+        let txdata = TxData {
+            proof,
+            txs: vec![open_tx],
+        };
+
+        eth::set_storage_root(root.hash());
+        eth::set_calldata(rlp::encode(&txdata));
+
+        contract_main().unwrap();
+
+        // Check that the final root has been updated
+        // to the proper value
+        let mut newtrie = Node::default();
+        newtrie
+            .insert(
+                &user1_addr,
+                rlp::encode(&Account::Existing(
+                    user1_addr.clone(),
+                    2,
+                    990,
+                    vec![],
+                    vec![],
+                )),
+            )
+            .unwrap();
+        newtrie
+            .insert(
+                &user2_addr,
+                rlp::encode(&Account::Existing(
+                    user2_addr.clone(),
+                    1,
+                    20,
+                    vec![],
+                    vec![],
+                )),
+            )
+            .unwrap();
+        newtrie
+            .insert(
+                &contract_address1,
+                rlp::encode(&Account::Existing(
+                    contract_address1.clone(),
+                    2,
+                    0,
+                    vec![],
+                    vec![
+                        123, 76, 14, 99, 195, 95, 145, 247, 99, 59, 196, 219, 252, 140, 63, 99, 27,
+                        130, 242, 14, 181, 154, 35, 232, 170, 166, 228, 13, 59, 214, 229, 236, 205,
+                        9, 152, 122, 184, 20, 30, 197, 1,
                     ],
                 )),
             )
