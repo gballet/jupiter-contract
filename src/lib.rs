@@ -4,95 +4,9 @@ extern crate rlp;
 extern crate secp256k1;
 extern crate sha3;
 
-mod eei;
-
-#[cfg(not(test))]
-mod eth {
-    use super::*;
-
-    pub fn revert() {
-        unsafe {
-            eei::revert();
-        }
-    }
-
-    pub fn finish(res: Vec<u8>) {
-        unsafe {
-            eei::finish(res.as_ptr(), res.len());
-        }
-    }
-
-    pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
-        unsafe {
-            eei::calldata(buf.as_mut_ptr(), offset, buf.len());
-        }
-    }
-
-    pub fn calldata_size() -> usize {
-        unsafe { eei::calldata_size() }
-    }
-
-    pub fn get_storage_root(buf: &mut Vec<u8>) {
-        unsafe {
-            eei::get_storage_root(buf.as_mut_ptr(), buf.len());
-        }
-    }
-
-    pub fn set_storage_root(buf: Vec<u8>) {
-        unsafe {
-            eei::set_storage_root(buf.as_ptr(), buf.len());
-        }
-    }
-}
-
-#[cfg(test)]
-mod eth {
-    static mut CD: Vec<u8> = Vec::new();
-    static mut ROOT: Vec<u8> = Vec::new();
-
-    pub fn reset() {
-        unsafe {
-            CD.clear();
-            ROOT.clear();
-        }
-    }
-
-    pub fn calldata(buf: &mut Vec<u8>, offset: usize) {
-        let end = offset + buf.len();
-        unsafe {
-            buf.copy_from_slice(&CD[offset..end]);
-        }
-    }
-
-    pub fn calldata_size() -> usize {
-        return unsafe { CD.len() };
-    }
-
-    pub fn get_storage_root(buf: &mut Vec<u8>) {
-        unsafe {
-            buf.copy_from_slice(&ROOT[..]);
-        }
-    }
-
-    pub fn set_storage_root(buf: Vec<u8>) {
-        if buf.len() != 32 {
-            panic!("Invalid root length");
-        }
-        unsafe {
-            ROOT.resize(32, 0u8);
-            for (i, b) in buf.iter().enumerate() {
-                ROOT[i] = *b;
-            }
-        }
-    }
-    pub fn set_calldata(buf: Vec<u8>) {
-        for b in buf.iter() {
-            unsafe {
-                CD.push(*b);
-            }
-        }
-    }
-}
+#[cfg_attr(not(target_arch = "wasm32"), path = "eth_test.rs")]
+#[cfg_attr(target_arch = "wasm32", path = "eth_wasm.rs")]
+pub mod eth;
 
 use jupiter_account::{Account, Tx, TxData};
 use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
