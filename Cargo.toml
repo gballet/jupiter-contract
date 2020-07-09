@@ -15,4 +15,4 @@ libsecp256k1 = "0.3.5"
 sha3 = "0.8.2"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]

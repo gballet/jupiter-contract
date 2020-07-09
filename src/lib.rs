@@ -319,7 +319,7 @@ fn update(trie: &mut Node, accounts: Vec<&Account>) {
     eth::set_storage_root(trie.hash());
 }
 
-fn contract_main() -> Result<Vec<u8>, &'static str> {
+pub fn contract_main() -> Result<Vec<u8>, &'static str> {
     let mut payload = vec![0u8; eth::calldata_size()];
     eth::calldata(&mut payload, 0usize);
     let txdata: TxData = rlp::decode(&payload).unwrap();
