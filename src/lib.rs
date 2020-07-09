@@ -263,7 +263,7 @@ pub fn contract_main() -> Result<Vec<u8>, &'static str> {
     Err("could not verify proof")
 }
 
-#[cfg(not(test))]
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn main() {
     match contract_main() {
