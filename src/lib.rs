@@ -233,6 +233,16 @@ fn update(trie: &mut Node, accounts: Vec<&Account>) {
     eth::set_storage_root(trie.hash());
 }
 
+pub fn control_contract(addr1: &NibbleKey, addr2: &NibbleKey) -> NibbleKey {
+    let addr1_bytes: Vec<u8> = ByteKey::from(addr1.clone()).into();
+    let addr2_bytes: Vec<u8> = ByteKey::from(addr2.clone()).into();
+
+    let mut keccak256 = Keccak256::new();
+    keccak256.input(&addr1_bytes);
+    keccak256.input(&addr2_bytes);
+    NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()))
+}
+
 pub fn contract_main() -> Result<Vec<u8>, &'static str> {
     let mut payload = vec![0u8; eth::calldata_size()];
     eth::calldata(&mut payload, 0usize);
@@ -356,21 +366,14 @@ mod tests {
         };
         root.insert(&addr2, rlp::encode(&account2)).unwrap();
 
-        let addr1_bytes: Vec<u8> = ByteKey::from(addr1.clone()).into();
-        let addr2_bytes = ByteKey::from(addr2.clone()).into();
-
         // Intermediate contract address
-        let mut keccak256 = Keccak256::new();
-        keccak256.input(&addr1_bytes);
-        keccak256.input(&addr2_bytes);
-        let contract_address =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address = control_contract(addr1, addr2);
 
         // Channel-opening layer 2 transaction
         let mut open_tx = Tx {
             from: addr1.clone(),
             to: contract_address.clone(),
-            data: addr2_bytes,
+            data: ByteKey::from(addr2.clone()).into(),
             nonce: 1,
             value: 100,
             signature: vec![0u8; 65],
