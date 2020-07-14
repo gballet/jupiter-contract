@@ -332,55 +332,45 @@ mod tests {
 
         // Create the first account
         let user1_skey = SecretKey::parse(&[1u8; 32]).unwrap();
-        let msg = Message::parse_slice(&[0x55u8; 32]).unwrap();
-        let (user1_sig, user1_recid) = secp256k1_sign(&msg, &user1_skey);
-        let user1_pkey = secp256k1_recover(&msg, &user1_sig, &user1_recid).unwrap();
-        let mut keccak256 = Keccak256::new();
-        keccak256.input(&user1_pkey.serialize()[..]);
-        let addr1 = keccak256.result_reset()[..20].to_vec();
-        let user1_addr = NibbleKey::from(ByteKey::from(addr1.clone()));
-        root.insert(
-            &user1_addr,
-            rlp::encode(&Account::Existing(
-                user1_addr.clone(),
-                1,
-                1000,
-                vec![],
-                vec![],
-            )),
-        )
-        .unwrap();
+        let mut account1 = Account::from(&user1_skey);
+        let addr1 = match account1 {
+            Account::Existing(ref a, ref mut n, ref mut b, _, _) => {
+                *n = 1;
+                *b = 1000;
+                a
+            }
+            _ => panic!("expected existing account"),
+        };
+        root.insert(&addr1, rlp::encode(&account1)).unwrap();
 
         // Create the second account
         let user2_skey = SecretKey::parse(&[2u8; 32]).unwrap();
-        let (user2_sig, user2_recid) = secp256k1_sign(&msg, &user2_skey);
-        let user2_pkey = secp256k1_recover(&msg, &user2_sig, &user2_recid).unwrap();
-        keccak256.input(&user2_pkey.serialize()[..]);
-        let addr2 = keccak256.result_reset()[..20].to_vec();
-        let user2_addr = NibbleKey::from(ByteKey::from(addr2.clone()));
-        root.insert(
-            &user2_addr,
-            rlp::encode(&Account::Existing(
-                user2_addr.clone(),
-                1,
-                20,
-                vec![],
-                vec![],
-            )),
-        )
-        .unwrap();
+        let mut account2 = Account::from(&user2_skey);
+        let addr2 = match account2 {
+            Account::Existing(ref a, ref mut n, ref mut b, _, _) => {
+                *n = 1;
+                *b = 20;
+                a
+            }
+            _ => panic!("expected existing account"),
+        };
+        root.insert(&addr2, rlp::encode(&account2)).unwrap();
+
+        let addr1_bytes: Vec<u8> = ByteKey::from(addr1.clone()).into();
+        let addr2_bytes = ByteKey::from(addr2.clone()).into();
 
         // Intermediate contract address
-        keccak256.input(&addr1);
-        keccak256.input(&addr2);
+        let mut keccak256 = Keccak256::new();
+        keccak256.input(&addr1_bytes);
+        keccak256.input(&addr2_bytes);
         let contract_address =
             NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
 
         // Channel-opening layer 2 transaction
         let mut open_tx = Tx {
-            from: user1_addr.clone(),
+            from: addr1.clone(),
             to: contract_address.clone(),
-            data: addr2,
+            data: addr2_bytes,
             nonce: 1,
             value: 100,
             signature: vec![0u8; 65],
@@ -390,8 +380,7 @@ mod tests {
 
         // Create the proof containing the address of the channel creator,
         // as well as the addrss of the contract that will be created.
-        let proof =
-            make_multiproof(&root, vec![user1_addr.clone(), contract_address.clone()]).unwrap();
+        let proof = make_multiproof(&root, vec![addr1.clone(), contract_address.clone()]).unwrap();
 
         // Layer 1 tx data
         let txdata = TxData {
@@ -407,8 +396,8 @@ mod tests {
         // Check that the final root has been updated
         // to the proper value
         let endstate = vec![
-            (&user1_addr, 2, 900, vec![]),
-            (&user2_addr, 1, 20, vec![]),
+            (addr1, 2, 900, vec![]),
+            (addr2, 1, 20, vec![]),
             (
                 &contract_address,
                 0,
