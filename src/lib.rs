@@ -480,10 +480,7 @@ mod tests {
         .unwrap();
 
         // Intermediate contract address for user1
-        keccak256.input(&addr1);
-        keccak256.input(&addr2);
-        let contract_address1 =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address1 = control_contract(&user1_addr, &user2_addr);
         root.insert(
             &contract_address1,
             rlp::encode(&Account::Existing(
@@ -501,10 +498,7 @@ mod tests {
         .unwrap();
 
         // Intermediate contract address for user2
-        keccak256.input(&addr2);
-        keccak256.input(&addr1);
-        let contract_address2 =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address2 = control_contract(&user2_addr, &user1_addr);
         root.insert(
             &contract_address2,
             rlp::encode(&Account::Existing(
@@ -651,10 +645,7 @@ mod tests {
         .unwrap();
 
         // Intermediate contract address for user1
-        keccak256.input(&addr1);
-        keccak256.input(&addr2);
-        let contract_address1 =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address1 = control_contract(&user1_addr, &user2_addr);
         root.insert(
             &contract_address1,
             rlp::encode(&Account::Existing(
@@ -672,10 +663,7 @@ mod tests {
         .unwrap();
 
         // Intermediate contract address for user2
-        keccak256.input(&addr2);
-        keccak256.input(&addr1);
-        let contract_address2 =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address2 = control_contract(&user2_addr, &user1_addr);
         root.insert(
             &contract_address2,
             rlp::encode(&Account::Existing(
@@ -822,10 +810,7 @@ mod tests {
         .unwrap();
 
         // Intermediate contract address for user1
-        keccak256.input(&addr1);
-        keccak256.input(&addr2);
-        let contract_address1 =
-            NibbleKey::from(ByteKey::from(keccak256.result_reset()[..20].to_vec()));
+        let contract_address1 = control_contract(&user1_addr, &user2_addr);
         root.insert(
             &contract_address1,
             rlp::encode(&Account::Existing(
