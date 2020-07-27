@@ -45,7 +45,7 @@ fn account_from_trie(key: NibbleKey, trie: &Node) -> Result<Account, &'static st
     }
 }
 
-fn execute_tx(
+pub fn execute_tx(
     from: &mut Account,
     to: &mut Account,
     trie: &mut Node,
