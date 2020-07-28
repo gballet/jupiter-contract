@@ -9,7 +9,7 @@ extern crate sha3;
 pub mod eth;
 
 use jupiter_account::{Account, Tx, TxData};
-use multiproof_rs::{ByteKey, NibbleKey, Node, ProofToTree, Tree};
+use multiproof_rs::{ByteKey, Hashable, NibbleKey, Node, ProofToTree, Tree};
 use sha3::{Digest, Keccak256};
 
 fn verify(txdata: &TxData) -> Result<Node, String> {
