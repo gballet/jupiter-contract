@@ -27,10 +27,20 @@ fn verify(txdata: &TxData) -> Result<Node, String> {
         ));
     }
 
-    // Check that all txs' from addresses are in the trie
+    // Check that all txs' from addresses are in the trie. There is an
+    // exception for the case when a new user joins the channel and is
+    // funding the address for the first time.
     for tx in txdata.txs.iter() {
         if !trie.has_key(&tx.from) {
-            return Err(format!("key {:?} isn't in trie", tx.from));
+            // The address doesn't exist. Two possibilities here:
+            // 1. The sender is 0x0000..0000 and the nonce of the
+            //    tx is 0, in which case the `to` account must be
+            //    created;
+            // 2. This transaction is simply invalid, then return
+            //    and error.
+            if tx.nonce > 0 || tx.from != NibbleKey::from(vec![0u8; 64]) {
+                return Err(format!("key {:?} isn't in trie", tx.from));
+            }
         }
     }
 
@@ -250,6 +260,16 @@ pub fn contract_main() -> Result<Vec<u8>, &'static str> {
 
     if let Ok(mut trie) = verify(&txdata) {
         for tx in txdata.txs {
+            // Is the user creating a layer 2 account from a layer 1 account?
+            if tx.from == NibbleKey::from(vec![0u8; 64]) && tx.nonce == 0 {
+                let new_account = Account::Existing(tx.to.clone(), 1, tx.value, vec![], vec![]);
+                trie.insert(&tx.to, rlp::encode(&new_account)).unwrap();
+
+                continue;
+            }
+
+            // `from` account is expected to be funded, check is it present
+            // in the proof.
             if let Node::Leaf(_, ref f) = trie[&tx.from] {
                 let mut from = rlp::decode::<Account>(&f).unwrap();
 
